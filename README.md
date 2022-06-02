@@ -1,3 +1,3 @@
 # picture_shadow_removal
 In a picture with a simple background, find the shadow, and remove the shadow.
-run main.m in matlab 
+#run main.m in matlab 
