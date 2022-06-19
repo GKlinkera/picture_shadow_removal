@@ -4,8 +4,8 @@
 
 clc;
 clear all;
-PR=imread('2.jpg');
-subplot(141),imshow(PR),title('原图');
+PR=imread('5.jpg');
+subplot(151),imshow(PR),title('原图');
 
 I=PR;
 R=I(:,:,1);G=I(:,:,2);B=I(:,:,3);%拿到原图的R,G,B矩阵
@@ -19,6 +19,7 @@ YCBCR=rgb2ycbcr(I);%把图像转换为Ycbcr格式
 Y=YCBCR(:,:,1);Cb=YCBCR(:,:,2);Cr=YCBCR(:,:,3);%拿到Y,Cb，Cr矩阵；Y的值是用来找阴影区的
 Y1=YCBCR(:,:,1);
 Y2=YCBCR(:,:,1);
+Y3=YCBCR(:,:,1);
 
 Mid=median(Y,'all');%求Y矩阵元素的中位数
 Midcr=median(Cr,'all');
@@ -50,9 +51,10 @@ end
 
 % Yme1=mean(Y1,'all');
 
-subplot(142),imshow(255*Y1),title('rough-mask');
+% subplot(142),imshow(255*Y1),title('rough-mask');
 MaskY1 = uint8(bwareaopen(Y1,2500,8));%这个就是最后拿到的阴影区的mask。上面拿到的阴影区的mask会有很多小的碎片，这里把连通域小的都去除掉，就是认为只有大块的阴影才算阴影区
-subplot(143),imshow(255*MaskY1),title('mask');
+subplot(152),imshow(255*MaskY1),title('mask');
+% imwrite(255*MaskY1,'5_mask.jpg');
 % Y3=MaskY1;
 
 [width,height]=size(MaskY1);%这步是拿亮区的mask 相当于对阴影区mask取反
@@ -66,7 +68,34 @@ for i=1:width
     end
 end
 
+[width,height]=size(MaskY1);%这步是拿mask-edge 
+for i=2:width-1
+    for j=2:height-1
+        if (MaskY1(i-1,j)==0&&MaskY1(i,j)==1||MaskY1(i+1,j)==0&&MaskY1(i,j)==1||MaskY1(i,j-1)==0&&MaskY1(i,j)==1||MaskY1(i,j+1)==0&&MaskY1(i,j)==1)
+          Y3(i-1,j-1)=1;
+%          Y3(i-1,j)=1;
+%          Y3(i+1,j)=1;
+%          Y3(i,j-1)=1;
+%          Y3(i,j)=1;
+          Y3(i,j+1)=1;
+%          Y3(i+1,j-1)=1;
+          Y3(i+1,j)=1;
+          Y3(i+1,j+1)=1;
+            Y3(i,j)=1;
+        else
+         Y3(i,j)=0;
+        end
+    end
+end
+
 MaskY2=Y2;%亮区mask
+
+MaskY3=uint8(bwareaopen(Y3,300,8));%mask-edge
+
+Maskedge(:,:,1)=MaskY3;Maskedge(:,:,2)=MaskY3;Maskedge(:,:,3)=MaskY3;
+
+subplot(153),imshow(255*MaskY3),title('edge');
+% imwrite(255*MaskY3,'5_edge.jpg');
 
 YCBCR1(:,:,1)=MaskY1;YCBCR1(:,:,2)=MaskY1;YCBCR1(:,:,3)=MaskY1;
 YCBCR2(:,:,1)=MaskY2;YCBCR2(:,:,2)=MaskY2;YCBCR2(:,:,3)=MaskY2;
@@ -118,19 +147,170 @@ IY(:,:,1)=IY(:,:,1)*BILIR;IY(:,:,2)=IY(:,:,2)*BILIG;IY(:,:,3)=IY(:,:,3)*BILIB;
 
 if (98<DISR<120&DISG>99&98<DISB<130) %如果差在这些范围内，将阴影区的RGB值加上算出来的差
      IX1=YCBCR;
+    
     if(DISB<40)
     I=I+IX1;
     else
-        I=I+IX1*0.9;
+       IX1(:,:,2)=IX1(:,:,2)*0.914*1.03;
+        IX1(:,:,3)=IX1(:,:,3)*0.87*1.03;
+        I=I+IX1*0.86;
+        
     end    
-subplot(144),imshow(I),title('removal-beta');
+
+subplot(154),imshow(I),title('removal-shadow');  
+% imwrite(I,'5_removal-shadow.jpg');
+
+ITX=I;
+
+[width,height]=size(Maskedge);%这里对edge行处理，就是把edge和edge周围的像素，用远一点的周围的像素进行填充。
+for i=20:width-19
+    for j=20:height-19
+        if (Maskedge(i,j)==1)
+         if(Maskedge(i,j-1)==1)
+        ITX(i,j-9)=ITX(i,j-18); 
+%         ITX(i,j-8)=ITX(i,j-15); 
+        ITX(i,j-7)=ITX(i,j-19); 
+%         ITX(i,j-6)=ITX(i,j-16); 
+        ITX(i,j-5)=ITX(i,j-17); 
+%         ITX(i,j-4)=ITX(i,j-12);
+        ITX(i,j-3)=ITX(i,j-13); 
+%         ITX(i,j-2)=ITX(i,j-14); 
+        ITX(i,j-1)=ITX(i,j-11);
+        ITX(i,j)=ITX(i,j-10);  
+          ITX(i+9,j)=ITX(i+12,j); 
+%          ITX(i-8,j)=ITX(i-18,j); 
+        ITX(i+7,j)=ITX(i+19,j); 
+%          ITX(i-6,j)=ITX(i-16,j); 
+         ITX(i+5,j)=ITX(i+11,j); 
+%         ITX(i-4,j)=ITX(i-14,j);
+        ITX(i+3,j)=ITX(i+13,j); 
+%         ITX(i-2,j)=ITX(i-17,j); 
+        ITX(i+1,j)=ITX(i+15,j);
+%         ITX(i,j) =0.1096*ITX(i-1,j-1)+0.1096*ITX(i+1,j-1)+0.1096*ITX(i-1,j+1)+0.1096*ITX(i+1,j+1)+0.1118*ITX(i,j-1)+0.1118*ITX(i,j+1)+0.1118*ITX(i-1,j)+0.1118*ITX(i+1,j)+0.1141*ITX(i,j);
+%         ITX(i+1,j)=ITX(i+15,j);
+            else
+        ITX(i,j+9)=ITX(i,j+18); 
+        ITX(i,j+8)=ITX(i,j+15); 
+        ITX(i,j+7)=ITX(i,j+19); 
+        ITX(i,j+6)=ITX(i,j+16); 
+        ITX(i,j+5)=ITX(i,j+17); 
+        ITX(i,j+4)=ITX(i,j+12);
+        ITX(i,j+3)=ITX(i,j+13); 
+        ITX(i,j+2)=ITX(i,j+14); 
+        ITX(i,j+1)=ITX(i,j+11);
+        ITX(i,j)=ITX(i,j+10);    
+%          ITX(i+9,j)=ITX(i+12,j); 
+         ITX(i-8,j)=ITX(i-18,j); 
+%         ITX(i+7,j)=ITX(i+19,j); 
+         ITX(i-6,j)=ITX(i-16,j); 
+%         ITX(i+5,j)=ITX(i+11,j); 
+        ITX(i-4,j)=ITX(i-14,j);
+%         ITX(i+3,j)=ITX(i+13,j); 
+        ITX(i-2,j)=ITX(i-17,j); 
+        ITX(i+1,j)=ITX(i+15,j);
+%         ITX(i,j) =0.1096*ITX(i-1,j-1)+0.1096*ITX(i+1,j-1)+0.1096*ITX(i-1,j+1)+0.1096*ITX(i+1,j+1)+0.1118*ITX(i,j-1)+0.1118*ITX(i,j+1)+0.1118*ITX(i-1,j)+0.1118*ITX(i+1,j)+0.1141*ITX(i,j);
+            end
+        
+        %ITX(i,j) =0.1096*ITX(i-1,j-1)+0.1096*ITX(i+1,j-1)+0.1096*ITX(i-1,j+1)+0.1096*ITX(i+1,j+1)+0.1118*ITX(i,j-1)+0.1118*ITX(i,j+1)+0.1118*ITX(i-1,j)+0.1118*ITX(i+1,j)+0.1141*ITX(i,j);
+        else
+         ITX(i,j)=ITX(i,j);
+        end
+    end
+end    
+
+% [width,height]=size(Maskedge);%这步是拿亮区的mask 相当于对阴影区mask取反
+% for i=10:width-10
+%     for j=10:height-10
+%         if (Maskedge(i,j)==1)
+%         ITX(i,j)=ITX(i+9,j); 
+%         %ITX(i,j) =0.1096*ITX(i-1,j-1)+0.1096*ITX(i+1,j-1)+0.1096*ITX(i-1,j+1)+0.1096*ITX(i+1,j+1)+0.1118*ITX(i,j-1)+0.1118*ITX(i,j+1)+0.1118*ITX(i-1,j)+0.1118*ITX(i+1,j)+0.1141*ITX(i,j);
+%         else
+%          ITX(i,j)=ITX(i,j);
+%         end
+%     end
+% end    
+
+
+subplot(155),imshow(ITX),title('edge-processing1');
+% imwrite(ITX,'5_edge-processing.jpg');
+
+
 
 
 else  %不在上面的范围里 就阴影区RGB值乘上面算出来的比值 为啥用乘 因为效果好:D
- I2=IY+IX;
-subplot(144),imshow(I2),title('removal-beta2');
+ITX=IY+IX;
+subplot(154),imshow(ITX),title('removal-shadow');
+% imwrite(ITX,'5_removal-shadow.jpg');
 
-end
+[width,height]=size(Maskedge);%这里对edge行处理，就是把edge和edge周围的像素，用远一点的周围的像素进行填充
+for i=20:width-19
+    for j=20:height-19
+        if (Maskedge(i,j)==1)
+         if(Maskedge(i,j-1)==1)
+        ITX(i,j-9)=ITX(i,j-18); 
+        ITX(i,j-8)=ITX(i,j-15); 
+        ITX(i,j-7)=ITX(i,j-19); 
+        ITX(i,j-6)=ITX(i,j-16); 
+        ITX(i,j-5)=ITX(i,j-17); 
+        ITX(i,j-4)=ITX(i,j-12);
+        ITX(i,j-3)=ITX(i,j-13); 
+        ITX(i,j-2)=ITX(i,j-14); 
+        ITX(i,j-1)=ITX(i,j-11);
+        ITX(i,j)=ITX(i,j-10);  
+%          ITX(i+9,j)=ITX(i+12,j); 
+%         ITX(i-8,j)=ITX(i-18,j); 
+%         ITX(i+7,j)=ITX(i+19,j); 
+%         ITX(i-6,j)=ITX(i-16,j); 
+%         ITX(i+5,j)=ITX(i+11,j); 
+        ITX(i-4,j)=ITX(i-14,j);
+        ITX(i+3,j)=ITX(i+13,j); 
+        ITX(i-2,j)=ITX(i-17,j); 
+        ITX(i+1,j)=ITX(i+15,j);
+%         ITX(i,j) =0.1096*ITX(i-1,j-1)+0.1096*ITX(i+1,j-1)+0.1096*ITX(i-1,j+1)+0.1096*ITX(i+1,j+1)+0.1118*ITX(i,j-1)+0.1118*ITX(i,j+1)+0.1118*ITX(i-1,j)+0.1118*ITX(i+1,j)+0.1141*ITX(i,j);
+%         ITX(i+1,j)=ITX(i+15,j);
+            else
+        ITX(i,j+9)=ITX(i,j+18); 
+        ITX(i,j+8)=ITX(i,j+15); 
+        ITX(i,j+7)=ITX(i,j+19); 
+        ITX(i,j+6)=ITX(i,j+16); 
+        ITX(i,j+5)=ITX(i,j+17); 
+        ITX(i,j+4)=ITX(i,j+12);
+        ITX(i,j+3)=ITX(i,j+13); 
+        ITX(i,j+2)=ITX(i,j+14); 
+        ITX(i,j+1)=ITX(i,j+11);
+        ITX(i,j)=ITX(i,j+10);    
+%          ITX(i+9,j)=ITX(i+12,j); 
+%         ITX(i-8,j)=ITX(i-18,j); 
+%         ITX(i+7,j)=ITX(i+19,j); 
+%         ITX(i-6,j)=ITX(i-16,j); 
+%         ITX(i+5,j)=ITX(i+11,j); 
+        ITX(i-4,j)=ITX(i-14,j);
+        ITX(i+3,j)=ITX(i+13,j); 
+        ITX(i-2,j)=ITX(i-17,j); 
+        ITX(i+1,j)=ITX(i+15,j);
+%         ITX(i,j) =0.1096*ITX(i-1,j-1)+0.1096*ITX(i+1,j-1)+0.1096*ITX(i-1,j+1)+0.1096*ITX(i+1,j+1)+0.1118*ITX(i,j-1)+0.1118*ITX(i,j+1)+0.1118*ITX(i-1,j)+0.1118*ITX(i+1,j)+0.1141*ITX(i,j);
+            end
+        %ITX(i,j) =0.1096*ITX(i-1,j-1)+0.1096*ITX(i+1,j-1)+0.1096*ITX(i-1,j+1)+0.1096*ITX(i+1,j+1)+0.1118*ITX(i,j-1)+0.1118*ITX(i,j+1)+0.1118*ITX(i-1,j)+0.1118*ITX(i+1,j)+0.1141*ITX(i,j);
+        else
+         ITX(i,j)=ITX(i,j);
+        end
+    end
+end    
+
+% [width,height]=size(Maskedge);%这步是拿亮区的mask 相当于对阴影区mask取反
+% for i=10:width-10
+%     for j=10:height-10
+%         if (Maskedge(i,j)==1)
+%         I2(i,j)=I2(i+9,j); 
+%         %ITX(i,j) =0.1096*ITX(i-1,j-1)+0.1096*ITX(i+1,j-1)+0.1096*ITX(i-1,j+1)+0.1096*ITX(i+1,j+1)+0.1118*ITX(i,j-1)+0.1118*ITX(i,j+1)+0.1118*ITX(i-1,j)+0.1118*ITX(i+1,j)+0.1141*ITX(i,j);
+%         else
+%          I2(i,j)=I2(i,j);
+%         end
+%     end
+% end    
+subplot(155),imshow(ITX),title('edge-processsing2');
+%  imwrite(ITX,'5_edge-processing.jpg');
+ end
 
 %下面是一些其他尝试 但是效果都不是很好:D
 % HSV=rgb2hsv(I);
